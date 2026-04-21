@@ -689,6 +689,7 @@ function initCoursCalendar() {
       renderCoursDatesList();
       syncCoursCalendarEvents();
       applyDayCellHighlights();
+      queueSaveCoursPrefs();
       coursCalendar.unselect();
     },
     events: coursDatesToEvents(),
