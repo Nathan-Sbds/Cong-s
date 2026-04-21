@@ -619,12 +619,14 @@ function renderCoursDatesList() {
     return;
   }
 
-  container.innerHTML = dates.map(d => {
-    const label = new Date(`${d}T00:00:00Z`).toLocaleDateString('fr-FR', {
-      weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
-    });
-    return `<span class="cours-date-chip">${label}<button type="button" onclick="removeCoursDate('${d}')">✕</button></span>`;
-  }).join('');
+  const readable = dates.map(d => new Date(`${d}T00:00:00Z`).toLocaleDateString('fr-FR', {
+    weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
+  }));
+
+  container.innerHTML = `
+    <div class="cours-dates-summary">${dates.length} date(s) manuelle(s) enregistrée(s)</div>
+    <textarea class="cours-dates-text" readonly>${readable.join('\n')}</textarea>
+  `;
 }
 
 function coursDatesToEvents() {

@@ -759,9 +759,28 @@ h2 { margin-bottom: 20px; font-size: 1.3rem; }
 }
 
 .cours-dates-list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 8px;
+}
+
+.cours-dates-summary {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.cours-dates-text {
+  width: 100%;
+  min-height: 120px;
+  max-height: 220px;
+  resize: vertical;
+  overflow: auto;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .cours-date-chip {
