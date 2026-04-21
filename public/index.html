@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestion des Congés</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="auth-screen" class="hidden">
+  <div id="auth-card">
+    <h1>Connexion</h1>
+    <p class="muted-text">Accès partagé sécurisé à l'application de congés.</p>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" data-auth-tab="login">Connexion</button>
+      <button type="button" class="auth-tab" data-auth-tab="register">Nouveau compte</button>
+    </div>
+    <form id="login-form" class="auth-form">
+      <label>Nom d'utilisateur
+        <input type="text" id="login-username" autocomplete="username" required />
+      </label>
+      <label>Mot de passe
+        <input type="password" id="login-password" autocomplete="current-password" required />
+      </label>
+      <label class="remember-row"><input type="checkbox" id="login-remember" checked /> Se souvenir de moi</label>
+      <p id="login-error"></p>
+      <button class="btn-primary" type="submit">Se connecter</button>
+      <button type="button" class="auth-link" onclick="showForgotPasswordPanel()">Mot de passe oublié ?</button>
+    </form>
+    <div id="twofactor-login-panel" class="auth-panel hidden">
+      <p class="muted-text">Saisissez le code généré par votre application d’authentification, ou un code de secours.</p>
+      <label>Code 2FA
+        <input type="text" id="twofactor-code" inputmode="numeric" autocomplete="one-time-code" />
+      </label>
+      <p id="twofactor-login-error" class="auth-error"></p>
+      <div class="auth-inline-actions">
+        <button type="button" class="btn-primary auth-inline-btn" onclick="verifyTwoFactorLogin()">Vérifier le code</button>
+        <button type="button" class="auth-inline-link auth-inline-btn" onclick="cancelTwoFactorLogin()">Annuler</button>
+      </div>
+    </div>
+    <div id="forgot-password-panel" class="auth-panel hidden">
+      <div class="auth-panel-head">
+        <span class="auth-panel-kicker">Réinitialisation sécurisée</span>
+        <h2>Changer le mot de passe</h2>
+      </div>
+      <p class="muted-text">Utilisez votre code 2FA à 6 chiffres ou un code de secours pour réinitialiser le mot de passe.</p>
+      <label>Nom d'utilisateur
+        <input type="text" id="forgot-username" autocomplete="username" />
+      </label>
+      <div class="auth-reset-grid">
+        <label>Code 2FA ou code de secours
+          <input type="text" id="forgot-code" inputmode="numeric" autocomplete="one-time-code" />
+        </label>
+        <label>Nouveau mot de passe
+          <input type="password" id="forgot-new-password" autocomplete="new-password" />
+        </label>
+        <label>Confirmer le nouveau mot de passe
+          <input type="password" id="forgot-new-password-confirm" autocomplete="new-password" />
+        </label>
+      </div>
+      <div class="auth-inline-actions">
+        <button type="button" class="btn-secondary auth-inline-btn" onclick="hideForgotPasswordPanel()">Retour</button>
+      </div>
+      <p id="forgot-error"></p>
+      <p id="forgot-success" class="auth-success"></p>
+      <button class="btn-primary" type="button" onclick="resetForgotPassword()">Réinitialiser le mot de passe</button>
+    </div>
+    <form id="register-form" class="auth-form hidden">
+      <label>Nom d'utilisateur
+        <input type="text" id="register-username" autocomplete="username" required />
+      </label>
+      <label>Mot de passe
+        <input type="password" id="register-password" autocomplete="new-password" required />
+      </label>
+      <label>Confirmer le mot de passe
+        <input type="password" id="register-password-confirm" autocomplete="new-password" required />
+      </label>
+      <p id="register-error"></p>
+      <button class="btn-primary" type="submit">Créer le compte</button>
+    </form>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="logo">🗓️ MesConges</div>
+    <nav>
+      <button class="nav-btn active" onclick="showView('calendar', this)">📅 Calendrier</button>
+      <button class="nav-btn" onclick="showView('list', this)">📋 Liste</button>
+      <button class="nav-btn" onclick="showView('suggestions', this)">🤖 Suggestions IA</button>
+      <button class="nav-btn" onclick="showView('settings', this)">⚙️ Paramètres</button>
+    </nav>
+
+    <div id="solde-sidebar">
+      <div class="solde-section-title">🏖️ Congés payés</div>
+      <div class="solde-item">
+        <span>Disponibles</span>
+        <strong id="sb-conges">—</strong>
+      </div>
+      <div class="solde-item solde-sub">
+        <span id="sb-conges-periode">—</span>
+      </div>
+
+      <div class="solde-section-title" style="margin-top:10px">⏱️ RQ</div>
+      <div class="solde-item">
+        <span>Acquis</span>
+        <strong id="sb-rq">—</strong>
+      </div>
+      <div class="solde-item">
+        <span>Disponibles</span>
+        <strong id="sb-rq-dispo">—</strong>
+      </div>
+    </div>
+
+    <button class="btn-add" onclick="openModal()">+ Poser une absence</button>
+    <button class="btn-export" onclick="exportExcel()">📥 Export Excel</button>
+    <button class="btn-export" id="btn-logout">🔒 Déconnexion</button>
+  </aside>
+
+  <!-- MAIN -->
+  <main id="main">
+
+    <!-- CALENDRIER -->
+    <section id="view-calendar" class="view active">
+      <div id="calendar"></div>
+    </section>
+
+    <!-- LISTE -->
+    <section id="view-list" class="view">
+      <h2>Mes absences</h2>
+      <table id="list-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Début</th>
+            <th>Fin</th>
+            <th>Mode</th>
+            <th>Note</th>
+            <th>Jours décomptés</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="list-body"></tbody>
+      </table>
+    </section>
+
+    <!-- SUGGESTIONS IA -->
+    <section id="view-suggestions" class="view">
+      <h2>🤖 Suggestions IA — Optimisez vos vacances</h2>
+      <div id="suggestion-form">
+        <p>Indiquez vos périodes souhaitées (optionnel) :</p>
+        <div id="periodes-container">
+          <div class="periode-row">
+            <input type="date" class="p-debut" />
+            <input type="date" class="p-fin" />
+            <button onclick="removePeriode(this)">✕</button>
+          </div>
+        </div>
+        <button class="btn-secondary" onclick="addPeriode()">+ Ajouter une période</button>
+        <button class="btn-primary" onclick="getSuggestions()">Analyser</button>
+      </div>
+      <div id="suggestions-result"></div>
+    </section>
+
+    <!-- PARAMETRES -->
+    <section id="view-settings" class="view">
+      <h2>⚙️ Paramètres</h2>
+
+      <!-- Congés -->
+      <div class="settings-block">
+        <h3>🏖️ Congés payés</h3>
+        <div class="settings-form">
+          <label>Solde de congés sur la période (jours)
+            <input type="number" id="set-conges" step="0.5" min="0" />
+          </label>
+          <div class="row-2">
+            <label>Début de période
+              <input type="date" id="set-conges-debut" />
+            </label>
+            <label>Fin de période
+              <input type="date" id="set-conges-fin" />
+            </label>
+          </div>
+          <p class="muted-text">💡 Seules les absences posées dans cette fenêtre sont décomptées. Mettez à jour chaque année.</p>
+        </div>
+      </div>
+
+      <!-- RQ -->
+      <div class="settings-block">
+        <h3>⏱️ Acquisition des RQ <span class="badge-independent">indépendant</span></h3>
+        <div class="settings-form">
+          <label>Date de début de comptage RQ
+            <input type="date" id="set-rq-debut" />
+          </label>
+          <p class="muted-text">📌 Date depuis laquelle vous accumulez des RQ (ex : date d'embauche, début de convention). Indépendant de la période congés.</p>
+          <label>Mode d'acquisition
+            <select id="set-rq-mode" onchange="onRqModeChange()">
+              <option value="forfaitaire">Forfaitaire (N jours/an acquis linéairement)</option>
+              <option value="reel">Au réel (1 RQ tous les N jours travaillés)</option>
+            </select>
+          </label>
+
+          <div id="rq-forfaitaire-block">
+            <label>Nombre de jours RQ par an
+              <input type="number" id="set-rq-forfait" step="0.5" min="0" />
+            </label>
+          </div>
+
+          <div id="rq-reel-block" style="display:none">
+            <label>Jours travaillés nécessaires pour 1 acquisition
+              <input type="number" id="set-rq-cycle" step="1" min="1" />
+            </label>
+            <label>Jours RQ gagnés par cycle
+              <input type="number" id="set-rq-par-acq" step="0.5" min="0.5" />
+            </label>
+          </div>
+
+          <button class="btn-primary" onclick="savePrefs()">Enregistrer</button>
+        </div>
+      </div>
+
+      <!-- Alternance -->
+      <div class="settings-block">
+        <h3>🎓 Alternance : jours de cours</h3>
+        <div class="settings-form">
+          <p class="muted-text">Les jours sélectionnés seront considérés comme indisponibles pour poser des congés et des RQ.</p>
+          <div id="set-cours-days" class="days-grid">
+            <label><input type="checkbox" value="1" /> Lundi</label>
+            <label><input type="checkbox" value="2" /> Mardi</label>
+            <label><input type="checkbox" value="3" /> Mercredi</label>
+            <label><input type="checkbox" value="4" /> Jeudi</label>
+            <label><input type="checkbox" value="5" /> Vendredi</label>
+            <label><input type="checkbox" value="6" /> Samedi</label>
+            <label><input type="checkbox" value="0" /> Dimanche</label>
+          </div>
+
+          <p class="muted-text">Cliquez pour ajouter/retirer une date de cours, ou cliquez-glissez pour marquer une période entière.</p>
+          <div id="cours-calendar"></div>
+          <div class="row-2">
+            <label>Date de cours manuelle
+              <input type="date" id="set-cours-date-input" />
+            </label>
+            <div style="display:flex;align-items:flex-end">
+              <button class="btn-secondary" type="button" onclick="addCoursDate()">+ Ajouter la date</button>
+            </div>
+          </div>
+          <div id="set-cours-dates-list" class="cours-dates-list"></div>
+        </div>
+      </div>
+
+      <!-- Simulation -->
+      <div class="settings-block">
+        <h3>📈 Simulation acquisition RQ</h3>
+        <p class="muted-text">Projection sur 12 mois depuis la date de début RQ</p>
+        <button class="btn-secondary" onclick="loadSimulation()">Lancer la simulation</button>
+        <div id="simulation-chart-container" style="margin-top:16px"></div>
+      </div>
+
+      <!-- Authentification à deux facteurs -->
+      <div class="settings-block">
+        <h3>🛡️ Authentification à deux facteurs</h3>
+        <div class="settings-form">
+          <p class="muted-text">Associez un authenticator comme Google Authenticator, Microsoft Authenticator ou 1Password.</p>
+          <div id="twofactor-status" class="auth-status-pill">Chargement...</div>
+          <div class="auth-inline-actions">
+            <button class="btn-secondary auth-inline-btn" type="button" onclick="startTwoFactorSetup()">Activer / reconfigurer</button>
+            <button class="btn-secondary auth-inline-btn" type="button" onclick="disableTwoFactor()">Désactiver</button>
+          </div>
+          <div class="auth-inline-actions">
+            <button class="btn-secondary auth-inline-btn" type="button" onclick="toggleBackupCodesPanel()">Codes de secours</button>
+          </div>
+          <div id="twofactor-setup-panel" class="auth-panel hidden">
+            <p class="muted-text">Scannez le QR code avec votre application puis confirmez le code à 6 chiffres.</p>
+            <div class="twofactor-qr-wrap">
+              <img id="twofactor-qr" alt="QR code 2FA" />
+            </div>
+            <div class="auth-reset-grid">
+              <label>Mot de passe actuel
+                <input type="password" id="twofactor-password" autocomplete="current-password" />
+              </label>
+              <label>Code de confirmation
+                <input type="text" id="twofactor-confirm-code" inputmode="numeric" autocomplete="one-time-code" />
+              </label>
+            </div>
+            <p id="twofactor-setup-error" class="auth-error"></p>
+            <p id="twofactor-setup-success" class="auth-success"></p>
+            <button class="btn-primary" type="button" onclick="confirmTwoFactorSetup()">Confirmer l’activation</button>
+          </div>
+          <p id="twofactor-disable-error" class="auth-error"></p>
+          <p id="twofactor-disable-success" class="auth-success"></p>
+          <div id="twofactor-backup-panel" class="auth-panel hidden">
+            <p class="muted-text">Les codes de secours permettent un accès ponctuel si votre application d’authentification n’est pas disponible. Ils ne sont utilisables qu’une seule fois.</p>
+            <label>Mot de passe actuel
+              <input type="password" id="backup-codes-password" autocomplete="current-password" />
+            </label>
+            <div class="auth-inline-actions">
+              <button class="btn-primary auth-inline-btn" type="button" onclick="generateBackupCodes()">Générer des codes</button>
+              <button class="btn-secondary auth-inline-btn" type="button" onclick="hideBackupCodesPanel()">Fermer</button>
+            </div>
+            <p id="backup-codes-error" class="auth-error"></p>
+            <p id="backup-codes-success" class="auth-success"></p>
+            <div id="backup-codes-status" class="auth-status-pill">0 code restant</div>
+            <div id="backup-codes-list" class="backup-codes-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Identifiant -->
+      <div class="settings-block">
+        <h3>👤 Identifiant</h3>
+        <div class="settings-form">
+          <p class="muted-text">Modifiez votre nom d'utilisateur utilisé pour vous connecter.</p>
+          <label>Identifiant actuel
+            <input type="text" id="current-username" autocomplete="username" readonly />
+          </label>
+          <label>Nouvel identifiant
+            <input type="text" id="new-username" autocomplete="username" />
+          </label>
+          <label>Mot de passe actuel
+            <input type="password" id="change-username-password" autocomplete="current-password" />
+          </label>
+          <p id="change-username-error" class="auth-error"></p>
+          <p id="change-username-success" class="auth-success"></p>
+          <button class="btn-primary" type="button" onclick="changeUsername()">Mettre à jour l’identifiant</button>
+        </div>
+      </div>
+
+      <!-- Mot de passe -->
+      <div class="settings-block">
+        <h3>🔐 Mot de passe</h3>
+        <div class="settings-form">
+          <p class="muted-text">Modifiez votre mot de passe sans quitter l'application.</p>
+          <label>Mot de passe actuel
+            <input type="password" id="current-password" autocomplete="current-password" />
+          </label>
+          <label>Nouveau mot de passe
+            <input type="password" id="new-password" autocomplete="new-password" />
+          </label>
+          <label>Confirmer le nouveau mot de passe
+            <input type="password" id="new-password-confirm" autocomplete="new-password" />
+          </label>
+          <p id="change-password-error" class="auth-error"></p>
+          <p id="change-password-success" class="auth-success"></p>
+          <button class="btn-primary" type="button" onclick="changePassword()">Mettre à jour le mot de passe</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- MODAL -->
+<div id="absence-info-overlay" class="hidden" onclick="closeAbsenceInfo()">
+  <div id="absence-info-modal" onclick="event.stopPropagation()">
+    <h3>Informations de l'absence</h3>
+    <div id="absence-info-content"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeAbsenceInfo()">Fermer</button>
+      <button class="btn-secondary" onclick="editSelectedAbsence()">Modifier</button>
+      <button class="btn-primary" onclick="deleteAbsence(selectedAbsenceId)">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-overlay" class="hidden" onclick="closeModalOutside(event)">
+  <div id="modal">
+    <h3 id="modal-title">Poser une absence</h3>
+    <label>Type
+      <select id="m-type" onchange="onTypeChange()">
+        <option value="conge">Congé payé</option>
+        <option value="rq">RQ (repos compensateur)</option>
+      </select>
+    </label>
+    <label>Date de début <input type="date" id="m-debut" /></label>
+    <label>Date de fin <input type="date" id="m-fin" /></label>
+    <label id="m-demi-label">Mode journée
+      <select id="m-demi">
+        <option value="journee">Journée complète</option>
+        <option value="matin">Matin uniquement</option>
+        <option value="apres-midi">Après-midi uniquement</option>
+      </select>
+    </label>
+    <label>Note (optionnel)
+      <input type="text" id="m-note" placeholder="Ex : Vacances été…" />
+    </label>
+    <div id="modal-solde-info"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Annuler</button>
+      <button class="btn-primary" onclick="submitAbsence()">Valider</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
