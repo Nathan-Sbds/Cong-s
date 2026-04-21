@@ -1273,6 +1273,20 @@ app.put('/api/preferences', (req, res) => {
   res.json({ success: true });
 });
 
+app.put('/api/preferences/cours', (req, res) => {
+  const { cours_jours, cours_dates } = req.body || {};
+
+  db.prepare(`
+    UPDATE preferences SET
+      cours_jours = ?,
+      cours_dates = ?,
+      updated_at = datetime('now')
+    WHERE id = 1
+  `).run(String(cours_jours || ''), String(cours_dates || ''));
+
+  res.json({ success: true });
+});
+
 // ─── SUGGESTIONS IA ──────────────────────────────────────────────────────────
 
 app.post('/api/suggestions', async (req, res) => {

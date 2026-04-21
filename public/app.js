@@ -19,6 +19,7 @@ let suppressNextDateClick = false;
 let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
 let currentUsername = 'admin';
 let pendingTwoFactorChallenge = null;
+let coursPrefsSaveTimer = null;
 const rqSoldePreviewCache = new Map();
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
@@ -586,6 +587,18 @@ function setCoursCheckboxesFromPrefs(csv) {
   });
 }
 
+function bindCoursCheckboxesAutoSave() {
+  document.querySelectorAll('#set-cours-days input[type="checkbox"]').forEach(cb => {
+    if (cb.dataset.coursBound === '1') return;
+    cb.dataset.coursBound = '1';
+    cb.addEventListener('change', () => {
+      coursWeekdays = parseCoursJours(readCoursCheckboxesToCsv());
+      applyDayCellHighlights();
+      queueSaveCoursPrefs();
+    });
+  });
+}
+
 function parseCoursDates(csv) {
   if (!csv) return new Set();
   return new Set(
@@ -648,6 +661,7 @@ function toggleCoursDate(dateStr) {
   renderCoursDatesList();
   syncCoursCalendarEvents();
   applyDayCellHighlights();
+  queueSaveCoursPrefs();
 }
 
 function initCoursCalendar() {
@@ -704,6 +718,7 @@ function addCoursDate() {
   renderCoursDatesList();
   syncCoursCalendarEvents();
   applyDayCellHighlights();
+  queueSaveCoursPrefs();
 }
 
 function removeCoursDate(date) {
@@ -711,6 +726,33 @@ function removeCoursDate(date) {
   renderCoursDatesList();
   syncCoursCalendarEvents();
   applyDayCellHighlights();
+  queueSaveCoursPrefs();
+}
+
+function queueSaveCoursPrefs() {
+  clearTimeout(coursPrefsSaveTimer);
+  coursPrefsSaveTimer = setTimeout(() => {
+    void saveCoursPrefs();
+  }, 250);
+}
+
+async function saveCoursPrefs() {
+  const body = {
+    cours_jours: readCoursCheckboxesToCsv(),
+    cours_dates: readCoursDatesToCsv(),
+  };
+
+  try {
+    const res = await apiFetch('/api/preferences/cours', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('save-cours-failed');
+    prefs = { ...prefs, ...body };
+  } catch {
+    toast('Erreur de sauvegarde des jours de cours', true);
+  }
 }
 
 function readCoursCheckboxesToCsv() {
@@ -1151,6 +1193,7 @@ async function loadPrefs() {
   document.getElementById('set-rq-cycle').value      = prefs.rq_cycle_jours_travailles ?? 20;
   document.getElementById('set-rq-par-acq').value    = prefs.rq_jours_par_acquisition ?? 1;
   setCoursCheckboxesFromPrefs(prefs.cours_jours || '');
+  bindCoursCheckboxesAutoSave();
   setCoursDatesFromPrefs(prefs.cours_dates || '');
   applyDayCellHighlights();
   onRqModeChange();

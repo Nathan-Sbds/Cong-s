@@ -501,7 +501,7 @@ nav { display: flex; flex-direction: column; gap: 4px; }
   content: 'Cours';
   position: absolute;
   top: 6px;
-  right: 6px;
+  left: 6px;
   z-index: 5;
   font-size: 0.64rem;
   line-height: 1;
