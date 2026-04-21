@@ -675,6 +675,7 @@ function initCoursCalendar() {
     locale: 'fr',
     firstDay: 1,
     selectable: true,
+    selectMinDistance: 5,
     selectMirror: true,
     height: 'auto',
     headerToolbar: {
@@ -687,7 +688,15 @@ function initCoursCalendar() {
     },
     select(info) {
       const endInclusive = addDays(info.endStr, -1);
-      eachDateInRange(info.startStr, endInclusive, d => coursDates.add(d));
+      const rangeDates = [];
+      eachDateInRange(info.startStr, endInclusive, d => rangeDates.push(d));
+
+      const allAlreadyCours = rangeDates.length > 0 && rangeDates.every(d => coursDates.has(d));
+      for (const d of rangeDates) {
+        if (allAlreadyCours) coursDates.delete(d);
+        else coursDates.add(d);
+      }
+
       renderCoursDatesList();
       syncCoursCalendarEvents();
       applyDayCellHighlights();
